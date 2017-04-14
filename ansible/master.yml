@@ -1,0 +1,72 @@
+#
+
+- hosts: localhost
+  vars:
+    sqs_visibility_timout: 18000
+    # NOTE(jkoelker) Since we have to pay for the full hour anyway,
+    #                wait up to 30 mins for a job
+    sqs_wait_time: 20
+    sqs_max_waits: 75
+
+
+  pre_tasks:
+    - name: Gather facts
+      ec2_facts:
+
+    - name: Retrieve all tags on an instance
+      ec2_tag:
+        region: '{{ ansible_ec2_placement_region }}'
+        resource: '{{ ansible_ec2_instance_id }}'
+        state: list
+      register: ec2_tags
+
+    - name: Discover SQS work queue
+      set_fact:
+        sqs_work: '{{ ec2_tags.tags["SQS-work"] }}'
+
+  tasks:
+    - name: Copy the seppuku script into place
+      template:
+          src: seppuku.sh.j2
+          dest: /usr/local/bin/seppuku.sh
+          owner: root
+          group: root
+          mode: 0755
+
+    - name: Configure the seppuku service
+      template:
+          src: seppuku.service.j2
+          dest: /etc/systemd/system/seppuku.service
+
+    - name: Enable the seppuku service
+      systemd:
+        name: seppuku.service
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Copy the queue manager into place
+      template:
+          src: queue-manager.sh.j2
+          dest: /usr/local/bin/queue-manager.sh
+          owner: root
+          group: root
+          mode: 0755
+
+    - name: Copy the wrapper into place
+      template:
+          src: wrapper.sh.j2
+          dest: /usr/local/bin/wrapper.sh
+          owner: root
+          group: root
+          mode: 0755
+
+    - name: Configure the worker service
+      template:
+          src: worker.service.j2
+          dest: /etc/systemd/system/worker.service
+
+    - name: Start the worker
+      systemd:
+        name: worker.service
+        state: started
+        daemon_reload: yes

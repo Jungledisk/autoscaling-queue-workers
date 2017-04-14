@@ -1,0 +1,12 @@
+[Unit]
+Description=Decrement the autoscaling group and seppuku
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/local/bin/seppuku.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+[Unit]
+Description=Work the job queue
+StartLimitAction=reboot
+StartLimitIntervalSec={{ sqs_wait_time * sqs_max_waits * 2 }}
+StartLimitBurst={{ sqs_max_waits }}
+
+[Service]
+ExecStart=/usr/local/bin/queue-manager.sh
+Restart=always
+RestartSec=0

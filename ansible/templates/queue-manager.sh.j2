@@ -1,0 +1,45 @@
+#!/bin/bash
+
+echo "Starting on {{ sqs_work }}"
+
+MESSAGE=$(aws sqs receive-message \
+              --region "{{ ansible_ec2_placement_region }}" \
+              --queue-url "{{ sqs_work }}" \
+              --visibility-timeout "{{ sqs_visibility_timout }}" \
+              --wait-time-seconds "{{ sqs_wait_time }}" \
+              --max-number-of-messages 1)
+
+if [[ "x${MESSAGE}" == "x" ]]; then
+    echo "Did not recieve a job in the last {{ sqs_wait_time }} seconds."
+    exit 10
+fi
+
+HANDLE=$(echo "${MESSAGE}" | jq -r '.Messages[0].ReceiptHandle')
+BODY=$(echo "${MESSAGE}" | jq -r '.Messages[0].Body')
+MSG=$(echo "${BODY}" | jq -r '.Message')
+JOBID=$(echo "${MSG}" | jq -r '.job_id')
+
+if [[ "x${JOBID}" == "x" ]]; then
+    echo "Error finding jerb_id"
+    exit 20
+fi
+
+echo "Spawning worker for job_id ${JOBID}"
+
+# NOTE(jkoelker) Always exit with a "Failure" since systemd is restarting
+#                and we want it to shutdown the specified number of
+#                "unsuccessful" starts
+EXIT=1
+if ! /usr/local/bin/wrapper.sh "${JOBID}"; then
+    echo "Error processing job ${JOBID}"
+    EXIT=30
+fi
+
+aws sqs delete-message \
+    --region "{{ ansible_ec2_placement_region }}" \
+    --queue-url "{{ sqs_work }}" \
+    --receipt-handle "${HANDLE}"
+
+exit ${EXIT}
+
+# vim: set ft=sh:

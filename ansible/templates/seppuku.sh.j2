@@ -1,0 +1,14 @@
+#!/bin/bash
+
+METADATA_URL="http://169.254.169.254/latest"
+INSTANCE_ID=$(curl ${METADATA_URL}/meta-data/instance-id)
+IDENT_DOC=$(curl -s ${METADATA_URL}/dynamic/instance-identity/document)
+REGION=$(echo "${IDENT_DOC}" | jq -r '.region')
+
+
+aws autoscaling terminate-instance-in-auto-scaling-group \
+    --region "${REGION}" \
+    --instance-id "${INSTANCE_ID}" \
+    --should-decrement-desired-capacity
+
+# vim: set ft=sh:
